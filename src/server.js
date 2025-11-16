@@ -27,6 +27,7 @@ app.get('/', (req, res) => {
 app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/tickets', require('./routes/ticketRoutes'));
 app.use('/api/categories', require('./routes/categoryRoutes'));
+app.use('/api/assets', require('./routes/assetRoutes'));
 
 // Configuração do Swagger
 swaggerDocs(app);
