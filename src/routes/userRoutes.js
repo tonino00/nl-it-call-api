@@ -274,7 +274,7 @@ router.put('/profile', protect, updateProfile);
  *       403:
  *         description: Não autorizado
  */
-router.get('/', protect, authorize('admin'), getUsers);
+router.get('/', protect, authorize('admin', 'support'), getUsers);
 
 /**
  * @swagger
