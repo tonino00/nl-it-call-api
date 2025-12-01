@@ -9,7 +9,8 @@ const {
   addComment,
   closeTicket,
   reopenTicket,
-  getTicketMetrics
+  getTicketMetrics,
+  deleteTicket
 } = require('../controllers/ticketController');
 
 /**
@@ -455,5 +456,32 @@ router.put('/:id/close', protect, closeTicket);
  *         description: Chamado não encontrado
  */
 router.put('/:id/reopen', protect, reopenTicket);
+
+/**
+ * @swagger
+ * /api/tickets/{id}:
+ *   delete:
+ *     summary: Deletar um chamado
+ *     tags: [Chamados]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID do chamado
+ *     responses:
+ *       200:
+ *         description: Chamado deletado com sucesso
+ *       401:
+ *         description: Não autenticado
+ *       403:
+ *         description: Não autorizado
+ *       404:
+ *         description: Chamado não encontrado
+ */
+router.delete('/:id', protect, authorize('admin', 'support'), deleteTicket);
 
 module.exports = router;

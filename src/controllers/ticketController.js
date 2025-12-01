@@ -503,6 +503,43 @@ exports.reopenTicket = async (req, res) => {
   }
 };
 
+// @desc    Excluir um chamado
+// @route   DELETE /api/tickets/:id
+// @access  Privado
+exports.deleteTicket = async (req, res) => {
+  try {
+    const ticket = await Ticket.findById(req.params.id);
+
+    if (!ticket) {
+      return res.status(404).json({
+        success: false,
+        message: 'Chamado não encontrado'
+      });
+    }
+
+    if (req.user.role !== 'admin' && req.user.role !== 'support') {
+      return res.status(403).json({
+        success: false,
+        message: 'Você não tem permissão para excluir este chamado'
+      });
+    }
+
+    await ticket.deleteOne();
+
+    res.status(200).json({
+      success: true,
+      message: 'Chamado excluído com sucesso'
+    });
+  } catch (error) {
+    console.error('Erro ao excluir chamado:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao excluir chamado',
+      error: error.message
+    });
+  }
+};
+
 // @desc    Obter métricas de chamados
 // @route   GET /api/tickets/metrics
 // @access  Privado/Admin e Support
