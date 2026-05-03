@@ -34,6 +34,14 @@ const UserSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  passwordResetTokenHash: {
+    type: String,
+    default: null
+  },
+  passwordResetExpiresAt: {
+    type: Date,
+    default: null
+  },
   createdAt: {
     type: Date,
     default: Date.now

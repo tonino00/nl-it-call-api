@@ -1,5 +1,7 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const crypto = require('crypto');
+const nodemailer = require('nodemailer');
 require('dotenv').config();
 
 // Gerar token JWT
@@ -7,6 +9,33 @@ const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRATION || '24h',
   });
+};
+
+const sha256 = (value) => {
+  return crypto.createHash('sha256').update(value).digest('hex');
+};
+
+let transporter;
+const getTransporter = () => {
+  if (transporter) return transporter;
+
+  const host = process.env.SMTP_HOST;
+  const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+
+  if (!host || !port || !user || !pass) {
+    return null;
+  }
+
+  transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass }
+  });
+
+  return transporter;
 };
 
 // @desc    Registrar novo usuário
@@ -54,6 +83,94 @@ exports.register = async (req, res) => {
       message: 'Erro ao registrar usuário',
       error: error.message,
     });
+  }
+};
+
+// @desc    Solicitar reset de senha (envia e-mail)
+// @route   POST /api/users/forgot-password
+// @access  Público
+exports.forgotPassword = async (req, res) => {
+  try {
+    const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+
+    if (!email) {
+      return res.status(200).json({ success: true });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(200).json({ success: true });
+    }
+
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = sha256(rawToken);
+
+    const expiresInMinutes = process.env.RESET_PASSWORD_TOKEN_MINUTES
+      ? Number(process.env.RESET_PASSWORD_TOKEN_MINUTES)
+      : 30;
+
+    user.passwordResetTokenHash = tokenHash;
+    user.passwordResetExpiresAt = new Date(Date.now() + expiresInMinutes * 60 * 1000);
+    await user.save();
+
+    const frontendUrl = process.env.FRONTEND_URL;
+    const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+    const resetLink = frontendUrl
+      ? `${frontendUrl.replace(/\/$/, '')}/reset-password?token=${rawToken}`
+      : null;
+
+    const mailer = getTransporter();
+    if (mailer && from && resetLink) {
+      await mailer.sendMail({
+        from,
+        to: user.email,
+        subject: 'Redefinição de senha',
+        text: `Use este link para redefinir sua senha: ${resetLink}`,
+        html: `<p>Use este link para redefinir sua senha:</p><p><a href="${resetLink}">${resetLink}</a></p>`
+      });
+    }
+
+    res.status(200).json({ success: true });
+  } catch (error) {
+    res.status(200).json({ success: true });
+  }
+};
+
+// @desc    Redefinir senha com token
+// @route   POST /api/users/reset-password
+// @access  Público
+exports.resetPassword = async (req, res) => {
+  try {
+    const token = typeof req.body?.token === 'string' ? req.body.token.trim() : '';
+    const password = typeof req.body?.password === 'string' ? req.body.password : '';
+
+    if (!token || !password) {
+      return res.status(400).json({ success: false, message: 'Token e senha são obrigatórios' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ success: false, message: 'Senha deve ter no mínimo 6 caracteres' });
+    }
+
+    const tokenHash = sha256(token);
+
+    const user = await User.findOne({
+      passwordResetTokenHash: tokenHash,
+      passwordResetExpiresAt: { $gt: new Date() }
+    }).select('+password');
+
+    if (!user) {
+      return res.status(400).json({ success: false, message: 'Token inválido ou expirado' });
+    }
+
+    user.password = password;
+    user.passwordResetTokenHash = null;
+    user.passwordResetExpiresAt = null;
+    await user.save();
+
+    res.status(200).json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Erro ao redefinir senha', error: error.message });
   }
 };
 

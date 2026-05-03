@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const rateLimit = require('express-rate-limit');
 const { protect, authorize } = require('../middlewares/auth');
 const { 
   getUsers, 
@@ -11,9 +12,36 @@ const {
 const { 
   register, 
   login, 
+  forgotPassword,
+  resetPassword,
   getProfile, 
   updateProfile 
 } = require('../controllers/authController');
+
+const forgotPasswordIpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+const forgotPasswordEmailLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+    return email || req.ip;
+  }
+});
+
+const resetPasswordIpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false
+});
 
 /**
  * @swagger
@@ -83,6 +111,24 @@ const {
  *           format: password
  *       required:
  *         - email
+ *         - password
+ *     ForgotPasswordInput:
+ *       type: object
+ *       properties:
+ *         email:
+ *           type: string
+ *       required:
+ *         - email
+ *     ResetPasswordInput:
+ *       type: object
+ *       properties:
+ *         token:
+ *           type: string
+ *         password:
+ *           type: string
+ *           format: password
+ *       required:
+ *         - token
  *         - password
  *     AuthResponse:
  *       type: object
@@ -160,6 +206,58 @@ router.post('/register', register);
  *         description: Erro no servidor
  */
 router.post('/login', login);
+
+/**
+ * @swagger
+ * /api/users/forgot-password:
+ *   post:
+ *     summary: Solicitar redefinição de senha (envia e-mail)
+ *     tags: [Autenticação]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ForgotPasswordInput'
+ *     responses:
+ *       200:
+ *         description: Sempre retorna sucesso para evitar enumeração de usuários
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ */
+router.post('/forgot-password', forgotPasswordIpLimiter, forgotPasswordEmailLimiter, forgotPassword);
+
+/**
+ * @swagger
+ * /api/users/reset-password:
+ *   post:
+ *     summary: Redefinir senha com token
+ *     tags: [Autenticação]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ResetPasswordInput'
+ *     responses:
+ *       200:
+ *         description: Senha redefinida
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *       400:
+ *         description: Token inválido/expirado ou dados inválidos
+ */
+router.post('/reset-password', resetPasswordIpLimiter, resetPassword);
 
 /**
  * @swagger
