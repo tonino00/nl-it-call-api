@@ -44,6 +44,30 @@ exports.getDepartments = async (req, res) => {
   }
 };
 
+exports.getDepartmentById = async (req, res) => {
+  try {
+    const department = await Department.findById(req.params.id);
+
+    if (!department) {
+      return res.status(404).json({
+        success: false,
+        message: 'Departamento não encontrado'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      department
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao obter departamento',
+      error: error.message
+    });
+  }
+};
+
 exports.createDepartment = async (req, res) => {
   try {
     const { name } = req.body;

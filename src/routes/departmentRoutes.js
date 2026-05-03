@@ -3,6 +3,7 @@ const router = express.Router();
 const { protect, authorize } = require('../middlewares/auth');
 const {
   getDepartments,
+  getDepartmentById,
   createDepartment,
   updateDepartment,
   patchDepartment
@@ -93,6 +94,42 @@ const {
  *         description: Não autorizado
  */
 router.get('/', protect, authorize('admin', 'support'), getDepartments);
+
+/**
+ * @swagger
+ * /api/departments/{id}:
+ *   get:
+ *     summary: Obter departamento por ID
+ *     tags: [Departamentos]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID do departamento
+ *     responses:
+ *       200:
+ *         description: Dados do departamento
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 department:
+ *                   $ref: '#/components/schemas/Department'
+ *       401:
+ *         description: Não autenticado
+ *       403:
+ *         description: Não autorizado
+ *       404:
+ *         description: Departamento não encontrado
+ */
+router.get('/:id', protect, authorize('admin', 'support'), getDepartmentById);
 
 /**
  * @swagger
