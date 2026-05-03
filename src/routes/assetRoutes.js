@@ -44,9 +44,19 @@ router.use(protect, authorize('admin', 'support'));
  *         ownerUser:
  *           type: string
  *           description: ID do usuário responsável/que utiliza o patrimônio
- *         department:
+ *         departmentId:
  *           type: string
- *           description: Departamento associado ao patrimônio
+ *           description: ID do departamento associado ao patrimônio
+ *         department:
+ *           type: object
+ *           description: Departamento associado ao patrimônio (quando populado)
+ *           properties:
+ *             _id:
+ *               type: string
+ *             name:
+ *               type: string
+ *             active:
+ *               type: boolean
  *         purchaseDate:
  *           type: string
  *           format: date-time
@@ -104,7 +114,12 @@ router.use(protect, authorize('admin', 'support'));
  *         name: department
  *         schema:
  *           type: string
- *         description: Filtrar por departamento
+ *         description: Filtrar por departamento (legado: string)
+ *       - in: query
+ *         name: departmentId
+ *         schema:
+ *           type: string
+ *         description: Filtrar por ID do departamento
  *       - in: query
  *         name: ownerUser
  *         schema:

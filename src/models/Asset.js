@@ -34,6 +34,11 @@ const AssetSchema = new mongoose.Schema({
     ref: 'User',
     default: null
   },
+  departmentId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Department',
+    default: null
+  },
   department: {
     type: String,
     trim: true
