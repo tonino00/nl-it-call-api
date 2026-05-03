@@ -114,7 +114,7 @@ router.use(protect, authorize('admin', 'support'));
  *         name: department
  *         schema:
  *           type: string
- *         description: Filtrar por departamento (legado: string)
+ *         description: "Filtrar por departamento (legado: string)"
  *       - in: query
  *         name: departmentId
  *         schema:
