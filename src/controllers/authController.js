@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const crypto = require('crypto');
-const nodemailer = require('nodemailer');
+const emailService = require('../common/services/emailService');
 require('dotenv').config();
 
 // Gerar token JWT
@@ -13,29 +13,6 @@ const generateToken = (id) => {
 
 const sha256 = (value) => {
   return crypto.createHash('sha256').update(value).digest('hex');
-};
-
-let transporter;
-const getTransporter = () => {
-  if (transporter) return transporter;
-
-  const host = process.env.SMTP_HOST;
-  const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-
-  if (!host || !port || !user || !pass) {
-    return null;
-  }
-
-  transporter = nodemailer.createTransport({
-    host,
-    port,
-    secure: port === 465,
-    auth: { user, pass }
-  });
-
-  return transporter;
 };
 
 // @desc    Registrar novo usuário
@@ -114,24 +91,16 @@ exports.forgotPassword = async (req, res) => {
     await user.save();
 
     const frontendUrl = process.env.FRONTEND_URL;
-    const from = process.env.SMTP_FROM || process.env.SMTP_USER;
-    const resetLink = frontendUrl
-      ? `${frontendUrl.replace(/\/$/, '')}/reset-password?token=${rawToken}`
-      : null;
 
-    const mailer = getTransporter();
-    if (mailer && from && resetLink) {
-      await mailer.sendMail({
-        from,
-        to: user.email,
-        subject: 'Redefinição de senha',
-        text: `Use este link para redefinir sua senha: ${resetLink}`,
-        html: `<p>Use este link para redefinir sua senha:</p><p><a href="${resetLink}">${resetLink}</a></p>`
-      });
+    if (frontendUrl) {
+      await emailService.sendPasswordResetEmail(user.email, rawToken, user.name);
+    } else {
+      console.warn('FRONTEND_URL não configurada: não foi possível montar link de reset para envio de e-mail');
     }
 
     res.status(200).json({ success: true });
   } catch (error) {
+    console.error('Erro no forgot-password (envio pode ter falhado):', error);
     res.status(200).json({ success: true });
   }
 };
@@ -167,6 +136,8 @@ exports.resetPassword = async (req, res) => {
     user.passwordResetTokenHash = null;
     user.passwordResetExpiresAt = null;
     await user.save();
+
+    await emailService.sendPasswordChangedNotification(user.email, user.name);
 
     res.status(200).json({ success: true });
   } catch (error) {
