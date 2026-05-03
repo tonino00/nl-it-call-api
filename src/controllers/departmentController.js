@@ -140,15 +140,21 @@ exports.updateDepartment = async (req, res) => {
 
     department = await Department.findByIdAndUpdate(
       req.params.id,
-      { $set: { name } },
+      {
+        $set: {
+          name,
+          normalizedName
+        },
+        $currentDate: {
+          updatedAt: true
+        }
+      },
       { new: true, runValidators: true }
     );
 
-    const freshDepartment = await Department.findById(department._id);
-
     res.status(200).json({
       success: true,
-      department: freshDepartment || department
+      department
     });
   } catch (error) {
     let statusCode = 500;
