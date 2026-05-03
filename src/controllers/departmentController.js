@@ -144,9 +144,11 @@ exports.updateDepartment = async (req, res) => {
       { new: true, runValidators: true }
     );
 
+    const freshDepartment = await Department.findById(department._id);
+
     res.status(200).json({
       success: true,
-      department
+      department: freshDepartment || department
     });
   } catch (error) {
     let statusCode = 500;
