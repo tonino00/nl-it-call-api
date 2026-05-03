@@ -6,7 +6,8 @@ const {
   getDepartmentById,
   createDepartment,
   updateDepartment,
-  patchDepartment
+  patchDepartment,
+  deleteDepartment
 } = require('../controllers/departmentController');
 
 /**
@@ -253,5 +254,41 @@ router.put('/:id', protect, authorize('admin'), updateDepartment);
  *         description: Departamento não encontrado
  */
 router.patch('/:id', protect, authorize('admin'), patchDepartment);
+
+/**
+ * @swagger
+ * /api/departments/{id}:
+ *   delete:
+ *     summary: Excluir departamento (hard delete)
+ *     tags: [Departamentos]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID do departamento
+ *     responses:
+ *       200:
+ *         description: Departamento excluído
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *       401:
+ *         description: Não autenticado
+ *       403:
+ *         description: Não autorizado
+ *       404:
+ *         description: Departamento não encontrado
+ *       409:
+ *         description: Departamento vinculado a patrimônios
+ */
+router.delete('/:id', protect, authorize('admin'), deleteDepartment);
 
 module.exports = router;

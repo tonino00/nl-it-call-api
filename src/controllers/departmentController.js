@@ -1,4 +1,5 @@
 const Department = require('../models/Department');
+const Asset = require('../models/Asset');
 
 const normalizeDepartmentName = (value) => {
   if (typeof value !== 'string') return '';
@@ -39,6 +40,39 @@ exports.getDepartments = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Erro ao listar departamentos',
+      error: error.message
+    });
+  }
+};
+
+exports.deleteDepartment = async (req, res) => {
+  try {
+    const department = await Department.findById(req.params.id);
+
+    if (!department) {
+      return res.status(404).json({
+        success: false,
+        message: 'Departamento não encontrado'
+      });
+    }
+
+    const isInUse = await Asset.exists({ departmentId: department._id });
+    if (isInUse) {
+      return res.status(409).json({
+        success: false,
+        message: 'Não é possível excluir: departamento está vinculado a patrimônios.'
+      });
+    }
+
+    await department.deleteOne();
+
+    res.status(200).json({
+      success: true
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao excluir departamento',
       error: error.message
     });
   }
