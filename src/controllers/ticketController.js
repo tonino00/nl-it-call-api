@@ -1,6 +1,21 @@
 const Ticket = require('../models/Ticket');
 const Category = require('../models/Category');
 const User = require('../models/User');
+const Counter = require('../models/Counter');
+
+const generateTicketCode = (seq) => {
+  return `CHM${String(seq).padStart(6, '0')}`;
+};
+
+const getNextTicketSequence = async () => {
+  const counter = await Counter.findOneAndUpdate(
+    { _id: 'ticket' },
+    { $inc: { seq: 1 } },
+    { upsert: true, new: true }
+  );
+
+  return counter.seq;
+};
 
 // @desc    Obter todos os chamados (com filtros)
 // @route   GET /api/tickets
@@ -171,16 +186,33 @@ exports.createTicket = async (req, res) => {
     // Calcular data de vencimento com base no SLA da categoria
     const dueDate = new Date();
     dueDate.setHours(dueDate.getHours() + categoryExists.slaTime);
-    
-    // Criar o chamado
-    const ticket = await Ticket.create({
-      title,
-      description,
-      requester: req.user.id,
-      category,
-      priority: ticketPriority,
-      dueDate
-    });
+
+    let ticket;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const nextSeq = await getNextTicketSequence();
+        const code = generateTicketCode(nextSeq);
+
+        // Criar o chamado já com seq e code
+        ticket = await Ticket.create({
+          seq: nextSeq,
+          code,
+          title,
+          description,
+          requester: req.user.id,
+          category,
+          priority: ticketPriority,
+          dueDate
+        });
+
+        break;
+      } catch (err) {
+        if (err && err.code === 11000 && attempt < 2) {
+          continue;
+        }
+        throw err;
+      }
+    }
     
     // Buscar o chamado com os dados populados
     const populatedTicket = await Ticket.findById(ticket._id)

@@ -22,6 +22,14 @@ const CommentSchema = new mongoose.Schema({
 });
 
 const TicketSchema = new mongoose.Schema({
+  seq: {
+    type: Number
+  },
+  code: {
+    type: String,
+    trim: true,
+    immutable: true
+  },
   title: {
     type: String,
     required: [true, 'Título é obrigatório'],
@@ -90,6 +98,15 @@ const TicketSchema = new mongoose.Schema({
 
 // Método para atualizar o timestamp quando o documento é atualizado
 TicketSchema.pre('findOneAndUpdate', function() {
+  const update = this.getUpdate() || {};
+  const $set = update.$set || {};
+
+  if (Object.prototype.hasOwnProperty.call(update, 'code') || Object.prototype.hasOwnProperty.call($set, 'code')) {
+    const err = new Error('O campo code é imutável');
+    err.status = 400;
+    throw err;
+  }
+
   this.set({ updatedAt: Date.now() });
 });
 
@@ -108,5 +125,8 @@ TicketSchema.pre('save', function(next) {
 
 // Índice para pesquisa de texto completo
 TicketSchema.index({ title: 'text', description: 'text' });
+
+TicketSchema.index({ seq: 1 }, { unique: true, sparse: true });
+TicketSchema.index({ code: 1 }, { unique: true, sparse: true });
 
 module.exports = mongoose.model('Ticket', TicketSchema);
