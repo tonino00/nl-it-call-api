@@ -2,6 +2,7 @@ const Ticket = require('../models/Ticket');
 const Category = require('../models/Category');
 const User = require('../models/User');
 const Counter = require('../models/Counter');
+const notificationEmailService = require('../common/services/notificationEmailService');
 
 const generateTicketCode = (seq) => {
   return `CHM${String(seq).padStart(6, '0')}`;
@@ -218,6 +219,20 @@ exports.createTicket = async (req, res) => {
     const populatedTicket = await Ticket.findById(ticket._id)
       .populate('requester', 'name email department')
       .populate('category', 'name priority slaTime');
+
+    try {
+      const supportTeamEmailsRaw = process.env.SUPPORT_TEAM_EMAILS || '';
+      const supportTeamEmails = supportTeamEmailsRaw
+        .split(',')
+        .map((e) => e.trim())
+        .filter(Boolean);
+
+      if (supportTeamEmails.length > 0) {
+        await notificationEmailService.sendNewTicketEmail(populatedTicket, supportTeamEmails);
+      }
+    } catch (emailError) {
+      console.error('Falha ao enviar e-mail de novo chamado:', emailError);
+    }
     
     res.status(201).json({
       success: true,
