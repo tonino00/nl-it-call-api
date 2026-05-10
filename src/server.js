@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const connectDB = require('./config/database');
 const swaggerDocs = require('./config/swagger');
+const { startSlaJob } = require('./jobs/slaJob');
 require('dotenv').config();
 
 // Inicializar express
@@ -15,7 +16,26 @@ try {
 }
 
 // Middleware
-app.use(cors());
+const corsOptions = {
+  origin: (origin, callback) => {
+    const allowedOriginsRaw = process.env.CORS_ORIGINS;
+    const allowedOrigins = typeof allowedOriginsRaw === 'string'
+      ? allowedOriginsRaw.split(',').map((o) => o.trim()).filter(Boolean)
+      : [];
+
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.length === 0) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+
+    return callback(new Error('Not allowed by CORS'));
+  },
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  credentials: false
+};
+
+app.use(cors(corsOptions));
+app.options(/.*/, cors(corsOptions));
 app.use(express.json());
 
 // Rota base
@@ -26,6 +46,8 @@ app.get('/', (req, res) => {
 // Rotas da API
 app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/tickets', require('./routes/ticketRoutes'));
+app.use('/api/notifications', require('./routes/notificationRoutes'));
+app.use('/api/email', require('./routes/emailRoutes'));
 app.use('/api/categories', require('./routes/categoryRoutes'));
 app.use('/api/assets', require('./routes/assetRoutes'));
 app.use('/api/departments', require('./routes/departmentRoutes'));
@@ -52,4 +74,5 @@ const PORT = process.env.PORT || 3000;
 // Iniciar o servidor
 app.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
+  startSlaJob();
 });
