@@ -9,7 +9,7 @@ exports.streamNotifications = async (req, res) => {
   const requestedUserId = parseUserIdFromQuery(req);
 
   const isRegularUser = req.user.role === 'user';
-  const effectiveUserId = isRegularUser ? String(req.user.id) : null;
+  const effectiveUserId = requestedUserId ? String(requestedUserId) : String(req.user.id);
 
   if (requestedUserId && isRegularUser && String(req.user.id) !== String(requestedUserId)) {
     return res.status(403).json({
@@ -48,18 +48,23 @@ exports.streamNotifications = async (req, res) => {
 
   const newTicketsInterval = setInterval(async () => {
     try {
-      const tickets = await notificationService.checkNewTickets(effectiveUserId, lastCheckTimestamp);
+      if (!effectiveUserId) {
+        lastCheckTimestamp = Date.now();
+        return;
+      }
 
-      if (Array.isArray(tickets) && tickets.length) {
-        for (const ticket of tickets) {
-          writeEvent('new_ticket', ticket);
+      const notifications = await notificationService.checkNewNotifications(effectiveUserId, lastCheckTimestamp);
+
+      if (Array.isArray(notifications) && notifications.length) {
+        for (const notification of notifications) {
+          writeEvent('notification', notification);
         }
       }
 
       lastCheckTimestamp = Date.now();
     } catch (error) {
-      console.error('Erro ao verificar novos tickets (SSE):', error);
-      writeEvent('error', { message: 'Erro ao verificar novos tickets' });
+      console.error('Erro ao verificar notificações (SSE):', error);
+      writeEvent('error', { message: 'Erro ao verificar notificações' });
     }
   }, 5000);
 
@@ -87,4 +92,49 @@ exports.streamNotifications = async (req, res) => {
     clearInterval(keepAliveInterval);
     res.end();
   });
+};
+
+exports.listMyNotifications = async (req, res) => {
+  try {
+    const unreadOnly = String(req.query?.unreadOnly || '').toLowerCase() === 'true';
+    const limit = req.query?.limit;
+    const page = req.query?.page;
+
+    const result = await notificationService.listNotificationsForUser(req.user.id, { unreadOnly, limit, page });
+
+    res.status(200).json({
+      success: true,
+      ...result
+    });
+  } catch (error) {
+    console.error('Erro ao listar notificações:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao listar notificações'
+    });
+  }
+};
+
+exports.markMyNotificationAsRead = async (req, res) => {
+  try {
+    const updated = await notificationService.markNotificationAsRead(req.user.id, req.params.id);
+
+    if (!updated) {
+      return res.status(404).json({
+        success: false,
+        message: 'Notificação não encontrada ou já lida'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      notification: updated
+    });
+  } catch (error) {
+    console.error('Erro ao marcar notificação como lida:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao marcar notificação como lida'
+    });
+  }
 };

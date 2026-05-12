@@ -3,6 +3,7 @@ const Category = require('../models/Category');
 const User = require('../models/User');
 const Counter = require('../models/Counter');
 const notificationEmailService = require('../common/services/notificationEmailService');
+const notificationService = require('../common/services/notificationService');
 
 const generateTicketCode = (seq) => {
   return `CHM${String(seq).padStart(6, '0')}`;
@@ -221,6 +222,32 @@ exports.createTicket = async (req, res) => {
       .populate('category', 'name priority slaTime');
 
     try {
+      const supportUsers = await User.find({ role: { $in: ['admin', 'support'] } }).select('_id name email role').lean();
+
+      if (Array.isArray(supportUsers) && supportUsers.length) {
+        await Promise.all(
+          supportUsers.map((u) => notificationService.createNotification({
+            userId: u._id,
+            type: 'ticket_created',
+            title: `Novo chamado: ${populatedTicket.code || populatedTicket._id}`,
+            message: populatedTicket.title,
+            data: {
+              ticketId: populatedTicket._id,
+              code: populatedTicket.code,
+              title: populatedTicket.title,
+              priority: populatedTicket.priority,
+              status: populatedTicket.status,
+              categoryId: populatedTicket.category?._id,
+              requesterId: populatedTicket.requester?._id
+            }
+          }))
+        );
+      }
+    } catch (notificationError) {
+      console.error('Falha ao persistir notificação de novo chamado:', notificationError);
+    }
+
+    try {
       const supportTeamEmailsRaw = process.env.SUPPORT_TEAM_EMAILS || '';
       const supportTeamEmails = supportTeamEmailsRaw
         .split(',')
@@ -256,6 +283,8 @@ exports.updateTicket = async (req, res) => {
     const { title, description, status, priority, assignedTo, category } = req.body;
     
     let ticket = await Ticket.findById(req.params.id);
+
+    const previousStatus = ticket ? ticket.status : null;
     
     if (!ticket) {
       return res.status(404).json({
@@ -349,6 +378,27 @@ exports.updateTicket = async (req, res) => {
       .populate('requester', 'name email department')
       .populate('assignedTo', 'name email')
       .populate('category', 'name priority slaTime');
+
+    try {
+      const statusWasChanged = Boolean(updateFields.status) && previousStatus && previousStatus !== updateFields.status;
+
+      if (statusWasChanged && (req.user.role === 'admin' || req.user.role === 'support')) {
+        await notificationService.createNotification({
+          userId: ticket.requester?._id || ticket.requester,
+          type: 'ticket_status_changed',
+          title: `Status do chamado atualizado: ${ticket.code || ticket._id}`,
+          message: `Status: ${previousStatus} -> ${ticket.status}`,
+          data: {
+            ticketId: ticket._id,
+            code: ticket.code,
+            previousStatus,
+            status: ticket.status
+          }
+        });
+      }
+    } catch (notificationError) {
+      console.error('Falha ao persistir notificação de atualização de status:', notificationError);
+    }
     
     res.status(200).json({
       success: true,
@@ -572,6 +622,18 @@ exports.deleteTicket = async (req, res) => {
     }
 
     await ticket.deleteOne();
+
+    try {
+      const Notification = require('../models/Notification');
+      await Notification.deleteMany({
+        $or: [
+          { 'data.ticketId': ticket._id },
+          { 'data.ticketId': String(ticket._id) }
+        ]
+      });
+    } catch (notificationDeleteError) {
+      console.error('Falha ao remover notificações do ticket excluído:', notificationDeleteError);
+    }
 
     res.status(200).json({
       success: true,
